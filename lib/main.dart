@@ -5,6 +5,7 @@ import 'providers/task_provider.dart';
 import 'providers/journal_provider.dart';
 import 'providers/schedule_provider.dart';
 import 'providers/link_provider.dart';
+import 'providers/chat_provider.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 
@@ -17,6 +18,7 @@ void main() {
         ChangeNotifierProvider(create: (_) => JournalProvider()),
         ChangeNotifierProvider(create: (_) => ScheduleProvider()),
         ChangeNotifierProvider(create: (_) => LinkProvider()),
+        ChangeNotifierProvider(create: (_) => ChatProvider()),
       ],
       child: const HawkApp(),
     ),

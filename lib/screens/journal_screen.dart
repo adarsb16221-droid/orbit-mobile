@@ -61,11 +61,12 @@ class _JournalScreenState extends State<JournalScreen> {
   Widget build(BuildContext context) {
     final provider = Provider.of<JournalProvider>(context);
 
-    if (provider.isLoading && !_isEditing) {
+    if (provider.isLoading && !_isEditing && _textController.text.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return Padding(
+    return Container(
+      color: const Color(0xFFF8F9FA),
       padding: const EdgeInsets.all(16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -73,12 +74,27 @@ class _JournalScreenState extends State<JournalScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Journal - $_todayDateStr',
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Daily Journal',
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black87),
+                  ),
+                  Text(
+                    DateFormat('EEEE, MMMM d, yyyy').format(DateTime.now()),
+                    style: const TextStyle(fontSize: 14, color: Colors.grey),
+                  ),
+                ],
               ),
-              IconButton(
-                icon: Icon(_isEditing ? Icons.save : Icons.edit),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _isEditing ? Colors.green : Colors.blueAccent,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                ),
+                icon: Icon(_isEditing ? Icons.check : Icons.edit, size: 18),
+                label: Text(_isEditing ? 'Save' : 'Edit'),
                 onPressed: () {
                   if (_isEditing) {
                     _save();
@@ -91,20 +107,31 @@ class _JournalScreenState extends State<JournalScreen> {
               )
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
           Expanded(
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: TextField(
-                  controller: _textController,
-                  maxLines: null,
-                  expands: true,
-                  enabled: _isEditing,
-                  decoration: const InputDecoration(
-                    border: InputBorder.none,
-                    hintText: 'How was your day?',
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
                   ),
+                ],
+              ),
+              padding: const EdgeInsets.all(20.0),
+              child: TextField(
+                controller: _textController,
+                maxLines: null,
+                expands: true,
+                enabled: _isEditing,
+                style: const TextStyle(fontSize: 16, height: 1.5, color: Colors.black87),
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  hintText: 'What are you grateful for today?\n\nHow are you feeling?',
+                  hintStyle: TextStyle(color: Colors.black38),
                 ),
               ),
             ),
