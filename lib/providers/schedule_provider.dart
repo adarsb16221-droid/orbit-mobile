@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../services/widget_service.dart';
 import '../models/schedule.dart';
 
 class ScheduleProvider with ChangeNotifier {
@@ -22,6 +23,7 @@ class ScheduleProvider with ChangeNotifier {
         final List<dynamic> data = json.decode(response.body);
         _schedules = data.map((json) => Schedule.fromJson(json)).toList();
         _error = null;
+        WidgetService.updateWidgetData(schedules: _schedules);
       } else {
         _error = 'Failed to load schedules';
       }
@@ -34,10 +36,30 @@ class ScheduleProvider with ChangeNotifier {
   Future<bool> addSchedule(Schedule schedule) async {
     try {
       final response = await _apiService.post('/schedule', schedule.toJson());
-      if (response.statusCode == 201) {
+      if (response.statusCode == 201 || response.statusCode == 200) {
         final data = json.decode(response.body);
         _schedules.add(Schedule.fromJson(data));
+        WidgetService.updateWidgetData(schedules: _schedules);
         notifyListeners();
+        return true;
+      }
+    } catch (e) {
+      _error = e.toString();
+    }
+    return false;
+  }
+
+  Future<bool> updateSchedule(Schedule schedule) async {
+    try {
+      final response = await _apiService.put('/schedule', schedule.toJson());
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final index = _schedules.indexWhere((s) => s.id == schedule.id);
+        if (index != -1) {
+          _schedules[index] = Schedule.fromJson(data);
+          WidgetService.updateWidgetData(schedules: _schedules);
+          notifyListeners();
+        }
         return true;
       }
     } catch (e) {
@@ -51,6 +73,7 @@ class ScheduleProvider with ChangeNotifier {
       final response = await _apiService.delete('/schedule?id=$id');
       if (response.statusCode == 200) {
         _schedules.removeWhere((s) => s.id == id);
+        WidgetService.updateWidgetData(schedules: _schedules);
         notifyListeners();
         return true;
       }

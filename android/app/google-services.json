@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "848101897145",
+    "project_id": "hawk-b33ec",
+    "storage_bucket": "hawk-b33ec.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:848101897145:android:92402ef86ee8c7f78bbc68",
+        "android_client_info": {
+          "package_name": "com.example.hawk_mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA6hVssEbqtkNC3645V439rE59gSFJzaao"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

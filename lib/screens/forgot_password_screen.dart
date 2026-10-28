@@ -1,5 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/theme_provider.dart';
+import '../widgets/hawk_header.dart';
 import '../services/api_service.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
@@ -119,129 +122,155 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider?>(context);
+    final isDark = themeProvider?.isDarkMode ?? true;
+    final bg = themeProvider?.bg ?? (isDark ? const Color(0xFF0B1326) : const Color(0xFFF8F9FF));
+    final textPrimary = themeProvider?.textPrimary ?? (isDark ? const Color(0xFFDAE2FD) : Colors.black87);
+    final textSecondary = themeProvider?.textSecondary ?? (isDark ? const Color(0xFF908FA0) : Colors.grey);
+
     return Scaffold(
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const CircleAvatar(
-                radius: 32,
-                backgroundColor: Colors.blueAccent,
-                child: Icon(Icons.key, size: 32, color: Colors.white),
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'Reset Password',
-                style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.blueAccent),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _step == 1 ? 'Enter your email to receive an OTP' : 'Enter the OTP and your new password',
-                style: const TextStyle(fontSize: 16, color: Colors.grey),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 32),
-
-              if (_error != null)
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade100,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.red.shade300),
-                  ),
-                  child: Row(
+      backgroundColor: bg,
+      body: SafeArea(
+        child: Column(
+          children: [
+            const HawkHeader(
+              title: 'Reset Password',
+              subtitle: 'Account Recovery',
+              showBack: true,
+            ),
+            Expanded(
+              child: Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.error, color: Colors.red, size: 20),
-                      const SizedBox(width: 8),
-                      Expanded(child: Text(_error!, style: const TextStyle(color: Colors.red))),
+                      const CircleAvatar(
+                        radius: 32,
+                        backgroundColor: Color(0xFF8083FF),
+                        child: Icon(Icons.key, size: 32, color: Colors.white),
+                      ),
+                      const SizedBox(height: 24),
+                      Text(
+                        'Reset Password',
+                        style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: textPrimary),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _step == 1 ? 'Enter your email to receive an OTP' : 'Enter the OTP and your new password',
+                        style: TextStyle(fontSize: 14, color: textSecondary),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 32),
+
+                      if (_error != null)
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          margin: const EdgeInsets.only(bottom: 16),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade100,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.red.shade300),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.error, color: Colors.red, size: 20),
+                              const SizedBox(width: 8),
+                              Expanded(child: Text(_error!, style: const TextStyle(color: Colors.red))),
+                            ],
+                          ),
+                        ),
+
+                      if (_message != null)
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          margin: const EdgeInsets.only(bottom: 16),
+                          decoration: BoxDecoration(
+                            color: Colors.green.shade100,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.green.shade300),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.info, color: Colors.green, size: 20),
+                              const SizedBox(width: 8),
+                              Expanded(child: Text(_message!, style: const TextStyle(color: Colors.green))),
+                            ],
+                          ),
+                        ),
+
+                      if (_step == 1) ...[
+                        TextFormField(
+                          controller: _emailController,
+                          style: TextStyle(color: textPrimary),
+                          decoration: InputDecoration(
+                            labelText: 'Email Address',
+                            labelStyle: TextStyle(color: textSecondary),
+                            border: const OutlineInputBorder(),
+                            prefixIcon: const Icon(Icons.email),
+                          ),
+                          keyboardType: TextInputType.emailAddress,
+                        ),
+                        const SizedBox(height: 24),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 48,
+                          child: ElevatedButton(
+                            onPressed: _isLoading ? null : _requestOtp,
+                            child: _isLoading
+                                ? const CircularProgressIndicator(color: Colors.white)
+                                : const Text('Send OTP', style: TextStyle(fontSize: 18)),
+                          ),
+                        ),
+                      ] else ...[
+                        TextFormField(
+                          controller: _otpController,
+                          style: TextStyle(color: textPrimary),
+                          decoration: InputDecoration(
+                            labelText: 'OTP (6 Digits)',
+                            labelStyle: TextStyle(color: textSecondary),
+                            border: const OutlineInputBorder(),
+                            prefixIcon: const Icon(Icons.password),
+                          ),
+                          keyboardType: TextInputType.number,
+                          maxLength: 6,
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _passwordController,
+                          style: TextStyle(color: textPrimary),
+                          decoration: InputDecoration(
+                            labelText: 'New Password',
+                            labelStyle: TextStyle(color: textSecondary),
+                            border: const OutlineInputBorder(),
+                            prefixIcon: const Icon(Icons.lock),
+                          ),
+                          obscureText: true,
+                        ),
+                        const SizedBox(height: 24),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 48,
+                          child: ElevatedButton(
+                            onPressed: _isLoading ? null : _resetPassword,
+                            child: _isLoading
+                                ? const CircularProgressIndicator(color: Colors.white)
+                                : const Text('Reset Password', style: TextStyle(fontSize: 18)),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 24),
+                      TextButton.icon(
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: const Icon(Icons.arrow_back),
+                        label: const Text('Back to Login'),
+                      ),
                     ],
                   ),
                 ),
-
-              if (_message != null)
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.green.shade100,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.green.shade300),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.info, color: Colors.green, size: 20),
-                      const SizedBox(width: 8),
-                      Expanded(child: Text(_message!, style: const TextStyle(color: Colors.green))),
-                    ],
-                  ),
-                ),
-
-              if (_step == 1) ...[
-                TextFormField(
-                  controller: _emailController,
-                  decoration: const InputDecoration(
-                    labelText: 'Email Address',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.email),
-                  ),
-                  keyboardType: TextInputType.emailAddress,
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _requestOtp,
-                    child: _isLoading
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : const Text('Send OTP', style: TextStyle(fontSize: 18)),
-                  ),
-                ),
-              ] else ...[
-                TextFormField(
-                  controller: _otpController,
-                  decoration: const InputDecoration(
-                    labelText: 'OTP (6 Digits)',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.password),
-                  ),
-                  keyboardType: TextInputType.number,
-                  maxLength: 6,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _passwordController,
-                  decoration: const InputDecoration(
-                    labelText: 'New Password',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.lock),
-                  ),
-                  obscureText: true,
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _resetPassword,
-                    child: _isLoading
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : const Text('Reset Password', style: TextStyle(fontSize: 18)),
-                  ),
-                ),
-              ],
-              const SizedBox(height: 24),
-              TextButton.icon(
-                onPressed: () => Navigator.of(context).pop(),
-                icon: const Icon(Icons.arrow_back),
-                label: const Text('Back to Login'),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

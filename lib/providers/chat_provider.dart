@@ -67,7 +67,7 @@ class ChatProvider with ChangeNotifier {
         _messages.removeLast();
       }
     } catch (e) {
-      _error = 'Failed to connect to Orbit AI. Check your connection.';
+      _error = 'Failed to connect to Hawk AI. Check your connection.';
       _messages.removeLast();
     }
     

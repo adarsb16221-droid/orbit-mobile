@@ -8,7 +8,10 @@ class Task {
   final bool completed;
   final String? completedAt;
   final String? linkedGoalId;
+  final String? challengeId;
+  final String? challengeName;
   final List<Subtask> subtasks;
+  final List<String>? history;
   final double order;
 
   Task({
@@ -21,7 +24,10 @@ class Task {
     required this.completed,
     this.completedAt,
     this.linkedGoalId,
+    this.challengeId,
+    this.challengeName,
     required this.subtasks,
+    this.history,
     required this.order,
   });
 
@@ -36,10 +42,13 @@ class Task {
       completed: json['completed'] ?? false,
       completedAt: json['completedAt'],
       linkedGoalId: json['linkedGoalId'],
+      challengeId: json['challengeId'],
+      challengeName: json['challengeName'],
       subtasks: (json['subtasks'] as List<dynamic>?)
               ?.map((e) => Subtask.fromJson(e))
               .toList() ??
           [],
+      history: (json['history'] as List<dynamic>?)?.map((e) => e.toString()).toList(),
       order: (json['order'] as num?)?.toDouble() ?? 0.0,
     );
   }
@@ -55,7 +64,10 @@ class Task {
       'completed': completed,
       'completedAt': completedAt,
       'linkedGoalId': linkedGoalId,
+      if (challengeId != null) 'challengeId': challengeId,
+      if (challengeName != null) 'challengeName': challengeName,
       'subtasks': subtasks.map((e) => e.toJson()).toList(),
+      if (history != null) 'history': history,
       'order': order,
     };
   }

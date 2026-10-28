@@ -1,6 +1,9 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../services/api_service.dart';
+import '../providers/theme_provider.dart';
+import '../widgets/hawk_header.dart';
 
 class ExpensesScreen extends StatefulWidget {
   const ExpensesScreen({super.key});
@@ -199,49 +202,79 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
       topCategoryAmount = sortedEntries.first.value;
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Expenses'),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (_error != null)
-              Container(
-                padding: const EdgeInsets.all(12),
-                margin: const EdgeInsets.only(bottom: 16),
-                color: Colors.red.shade100,
-                child: Text(_error!, style: const TextStyle(color: Colors.red)),
-              ),
+    final themeProvider = Provider.of<ThemeProvider?>(context);
+    final isDark = themeProvider?.isDarkMode ?? true;
 
-            // Month Picker Area
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Money overview', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                TextButton.icon(
-                  icon: const Icon(Icons.calendar_month),
-                  label: Text(_month),
-                  onPressed: () async {
-                    // Simple month selection using flutter date picker
-                    final picked = await showDatePicker(
-                      context: context,
-                      initialDate: DateTime.parse('$_month-01'),
-                      firstDate: DateTime(2000),
-                      lastDate: DateTime(2100),
-                    );
-                    if (picked != null) {
-                      setState(() {
-                        _month = picked.toIso8601String().substring(0, 7);
-                      });
-                      _loadTransactions();
-                    }
-                  },
+    final bg = themeProvider?.bg ?? (isDark ? const Color(0xFF0B1326) : const Color(0xFFF8F9FF));
+    final textPrimary = themeProvider?.textPrimary ?? (isDark ? const Color(0xFFDAE2FD) : Colors.black87);
+
+    return Scaffold(
+      backgroundColor: bg,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // 1. HawkHeader
+            HawkHeader(
+              title: 'Expenses',
+              subtitle: 'Income & Expense Tracking',
+              actions: [
+                Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: themeProvider?.circleBtnBg ?? (isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05)),
+                    border: Border.all(color: themeProvider?.circleBtnBorder ?? (isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.1))),
+                  ),
+                  child: IconButton(
+                    icon: Icon(Icons.add, size: 20, color: isDark ? const Color(0xFFC0C1FF) : const Color(0xFF4648D4)),
+                    tooltip: 'Add Transaction',
+                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                    padding: EdgeInsets.zero,
+                    onPressed: () => _resetForm(),
+                  ),
                 ),
               ],
             ),
+
+            // 2. Expenses Content
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (_error != null)
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        margin: const EdgeInsets.only(bottom: 16),
+                        color: Colors.red.shade100,
+                        child: Text(_error!, style: const TextStyle(color: Colors.red)),
+                      ),
+
+                    // Month Picker Area
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Money overview', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textPrimary)),
+                        TextButton.icon(
+                          icon: const Icon(Icons.calendar_month, color: Color(0xFF8083FF)),
+                          label: Text(_month, style: const TextStyle(color: Color(0xFF8083FF), fontWeight: FontWeight.bold)),
+                          onPressed: () async {
+                            final picked = await showDatePicker(
+                              context: context,
+                              initialDate: DateTime.parse('$_month-01'),
+                              firstDate: DateTime(2000),
+                              lastDate: DateTime(2100),
+                            );
+                            if (picked != null) {
+                              setState(() {
+                                _month = picked.toIso8601String().substring(0, 7);
+                              });
+                              _loadTransactions();
+                            }
+                          },
+                        ),
+                      ],
+                    ),
             const SizedBox(height: 16),
 
             // Stats Cards
@@ -454,13 +487,24 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
           ],
         ),
       ),
-    );
+    ),
+  ],
+),
+),
+);
   }
 
   Widget _buildStatCard(String label, String value, Color color, IconData icon) {
+    final themeProvider = Provider.of<ThemeProvider?>(context);
+    final isDark = themeProvider?.isDarkMode ?? true;
+
     return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 0,
+      color: themeProvider?.surface ?? (isDark ? const Color(0xFF131B2E) : Colors.white),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: themeProvider?.cardBorder ?? (isDark ? Colors.white10 : Colors.black12)),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(12.0),
         child: Column(
@@ -469,7 +513,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
           children: [
             Icon(icon, color: color),
             const Spacer(),
-            Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            Text(label, style: TextStyle(fontSize: 12, color: themeProvider?.textSecondary ?? Colors.grey)),
             Text(
               value,
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color),

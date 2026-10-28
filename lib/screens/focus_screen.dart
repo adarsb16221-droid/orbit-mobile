@@ -1,6 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../services/api_service.dart';
+import '../providers/theme_provider.dart';
+import '../widgets/hawk_header.dart';
 
 class FocusScreen extends StatefulWidget {
   const FocusScreen({super.key});
@@ -85,30 +88,43 @@ class _FocusScreenState extends State<FocusScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider?>(context);
+    final isDark = themeProvider?.isDarkMode ?? true;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Deep Focus'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
-      extendBodyBehindAppBar: true,
-      body: Stack(
-        children: [
-          // Background Gradient
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Colors.blue.shade900, Colors.black87],
+      backgroundColor: const Color(0xFF0B1326),
+      body: SafeArea(
+        child: Column(
+          children: [
+            const HawkHeader(
+              title: 'Deep Focus',
+              subtitle: 'Distraction-Free Timer',
+              showBack: true,
+            ),
+            Expanded(
+              child: Stack(
+                children: [
+                  // Background Gradient
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: isDark
+                            ? [Colors.blue.shade900, Colors.black87]
+                            : [const Color(0xFF4648D4), const Color(0xFF131B2E)],
+                      ),
+                    ),
+                  ),
+                  
+                  Center(
+                    child: _isFocusing ? _buildActiveTimer() : _buildSetupTimer(),
+                  ),
+                ],
               ),
             ),
-          ),
-          
-          Center(
-            child: _isFocusing ? _buildActiveTimer() : _buildSetupTimer(),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -152,7 +168,7 @@ class _FocusScreenState extends State<FocusScreen> {
                   const Icon(Icons.stars, color: Colors.amber, size: 40),
                   const SizedBox(height: 8),
                   const Text('Session Complete!', style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 18)),
-                  Text('You earned +$_earnedPoints Orbit Points', style: const TextStyle(color: Colors.white70)),
+                  Text('You earned +$_earnedPoints Hawk Points', style: const TextStyle(color: Colors.white70)),
                 ],
               ),
             ),

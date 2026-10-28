@@ -6,10 +6,14 @@ import 'providers/journal_provider.dart';
 import 'providers/schedule_provider.dart';
 import 'providers/link_provider.dart';
 import 'providers/chat_provider.dart';
+import 'providers/theme_provider.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
+import 'services/widget_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await WidgetService.init();
   runApp(
     MultiProvider(
       providers: [
@@ -19,6 +23,7 @@ void main() {
         ChangeNotifierProvider(create: (_) => ScheduleProvider()),
         ChangeNotifierProvider(create: (_) => LinkProvider()),
         ChangeNotifierProvider(create: (_) => ChatProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
       ],
       child: const HawkApp(),
     ),
@@ -30,14 +35,35 @@ class HawkApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'HAWK Dashboard',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blueAccent),
-        useMaterial3: true,
-      ),
-      home: const InitialAuthCheck(),
-      debugShowCheckedModeBanner: false,
+    final existingThemeProvider = Provider.of<ThemeProvider?>(context);
+
+    if (existingThemeProvider == null) {
+      return ChangeNotifierProvider(
+        create: (_) => ThemeProvider(),
+        child: const _HawkAppContent(),
+      );
+    }
+
+    return const _HawkAppContent();
+  }
+}
+
+class _HawkAppContent extends StatelessWidget {
+  const _HawkAppContent();
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<ThemeProvider>(
+      builder: (context, themeProvider, _) {
+        return MaterialApp(
+          title: 'HAWK Dashboard',
+          themeMode: themeProvider.themeMode,
+          theme: themeProvider.lightTheme,
+          darkTheme: themeProvider.darkTheme,
+          home: const InitialAuthCheck(),
+          debugShowCheckedModeBanner: false,
+        );
+      },
     );
   }
 }
@@ -53,7 +79,9 @@ class _InitialAuthCheckState extends State<InitialAuthCheck> {
   @override
   void initState() {
     super.initState();
-    _checkAuth();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAuth();
+    });
   }
 
   void _checkAuth() async {

@@ -3,14 +3,14 @@ class User {
   final String name;
   final String email;
   final String authProvider;
-  final int orbitPoints;
+  final int hawkPoints;
 
   User({
     required this.id,
     required this.name,
     required this.email,
     required this.authProvider,
-    required this.orbitPoints,
+    required this.hawkPoints,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
@@ -19,7 +19,7 @@ class User {
       name: json['name'] ?? '',
       email: json['email'] ?? '',
       authProvider: json['authProvider'] ?? 'local',
-      orbitPoints: json['orbitPoints'] ?? 0,
+      hawkPoints: json['hawkPoints'] ?? 0,
     );
   }
 
@@ -29,7 +29,7 @@ class User {
       'name': name,
       'email': email,
       'authProvider': authProvider,
-      'orbitPoints': orbitPoints,
+      'hawkPoints': hawkPoints,
     };
   }
 }
