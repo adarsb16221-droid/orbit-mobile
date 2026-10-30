@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -237,6 +238,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
     final themeProvider = Provider.of<ThemeProvider?>(context);
+    final isDark = themeProvider?.isDarkMode ?? true;
     final user = authProvider.user;
 
     // Define all app screens
@@ -254,14 +256,26 @@ class _HomeScreenState extends State<HomeScreen> {
       const FocusScreen(),
     ];
 
-    return Scaffold(
-      key: _scaffoldKey,
-      backgroundColor: themeProvider?.bg ?? const Color(0xFF0B1326),
-      drawer: _buildDrawer(user, authProvider),
-      body: SafeArea(
-        child: screens[_currentIndex < screens.length ? _currentIndex : 0],
+    final surfaceColor = themeProvider?.surface ?? (isDark ? const Color(0xFF131B2E) : Colors.white);
+    final overlayStyle = SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+      systemNavigationBarColor: surfaceColor,
+      systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+      systemNavigationBarDividerColor: Colors.transparent,
+    );
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: overlayStyle,
+      child: Scaffold(
+        key: _scaffoldKey,
+        backgroundColor: themeProvider?.bg ?? const Color(0xFF0B1326),
+        drawer: _buildDrawer(user, authProvider),
+        body: SafeArea(
+          child: screens[_currentIndex < screens.length ? _currentIndex : 0],
+        ),
+        bottomNavigationBar: _buildBottomNav(),
       ),
-      bottomNavigationBar: _buildBottomNav(),
     );
   }
 
@@ -287,6 +301,7 @@ class _HomeScreenState extends State<HomeScreen> {
         HawkHeader(
           title: 'Dashboard',
           subtitle: 'Health, Wealth & Knowledge',
+          showThemeToggle: false,
           actions: [
             // Done Tasks Pill Button
             InkWell(
@@ -339,7 +354,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ],
-          showThemeToggle: true,
           showMenu: true,
           onMenu: () => _scaffoldKey.currentState?.openDrawer(),
         ),
@@ -1359,83 +1373,102 @@ class _HomeScreenState extends State<HomeScreen> {
     final isDark = themeProvider?.isDarkMode ?? true;
     final activeColor = themeProvider?.primary ?? (isDark ? const Color(0xFF8083FF) : const Color(0xFF4648D4));
     final inactiveColor = themeProvider?.textSecondary ?? (isDark ? const Color(0xFF908FA0) : const Color(0xFF64748B));
+    final surfaceColor = themeProvider?.surface ?? (isDark ? const Color(0xFF131B2E) : Colors.white);
+    final borderColor = themeProvider?.border ?? (isDark ? Colors.white10 : Colors.black12);
 
     final navItems = [
-      {'icon': Icons.home, 'label': 'Home'},
-      {'icon': Icons.auto_awesome, 'label': 'AI'},
-      {'icon': Icons.event, 'label': 'Plan'},
-      {'icon': Icons.list_alt, 'label': 'Log'},
-      {'icon': Icons.link, 'label': 'Links'},
-      {'icon': Icons.insights, 'label': 'Data'},
-      {'icon': Icons.flag, 'label': 'Vs'},
-      {'icon': Icons.person, 'label': 'Profile'},
+      {'icon': Icons.home, 'label': 'Home', 'index': 0},
+      {'icon': Icons.auto_awesome, 'label': 'AI', 'index': 1},
+      {'icon': Icons.event, 'label': 'Plan', 'index': 2},
+      {'icon': Icons.list_alt, 'label': 'Log', 'index': 3},
+      {'icon': Icons.link, 'label': 'Links', 'index': 4},
+      {'icon': Icons.insights, 'label': 'Data', 'index': 5},
+      {'icon': Icons.flag, 'label': 'Vs', 'index': 6},
+      {'icon': Icons.person, 'label': 'Profile', 'index': 8},
     ];
 
     return Container(
-      height: 60,
       decoration: BoxDecoration(
-        color: themeProvider?.surface ?? (isDark ? const Color(0xFF131B2E) : Colors.white),
-        border: Border(top: BorderSide(color: themeProvider?.border ?? (isDark ? Colors.white10 : Colors.black12))),
+        color: surfaceColor,
+        border: Border(top: BorderSide(color: borderColor)),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          ...List.generate(navItems.length, (index) {
-            final item = navItems[index];
-            final isActive = _currentIndex == index;
-            return InkWell(
-              onTap: () => setState(() => _currentIndex = index),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    item['icon'] as IconData,
-                    size: 20,
-                    color: isActive ? activeColor : inactiveColor,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    item['label'] as String,
-                    style: TextStyle(
-                      fontSize: 9,
-                      fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
-                      color: isActive ? activeColor : inactiveColor,
+      child: SafeArea(
+        top: false,
+        left: false,
+        right: false,
+        maintainBottomViewPadding: true,
+        child: SizedBox(
+          height: 60,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              ...List.generate(navItems.length, (index) {
+                final item = navItems[index];
+                final targetIndex = item['index'] as int;
+                final isActive = _currentIndex == targetIndex;
+                return Expanded(
+                  child: InkWell(
+                    onTap: () => setState(() => _currentIndex = targetIndex),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          item['icon'] as IconData,
+                          size: 20,
+                          color: isActive ? activeColor : inactiveColor,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          item['label'] as String,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
+                            color: isActive ? activeColor : inactiveColor,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
-            );
-          }),
-          // Global Theme Toggler in Bottom Navbar
-          Builder(
-            builder: (context) {
-              final themeProvider = Provider.of<ThemeProvider?>(context);
-              final isDark = themeProvider?.isDarkMode ?? true;
-              return InkWell(
-                onTap: () => themeProvider?.toggleTheme(),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      isDark ? Icons.light_mode : Icons.dark_mode,
-                      size: 20,
-                      color: activeColor,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      isDark ? 'Light' : 'Dark',
-                      style: TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold,
-                        color: activeColor,
+                );
+              }),
+              // Global Theme Toggler in Bottom Navbar
+              Builder(
+                builder: (context) {
+                  final themeProvider = Provider.of<ThemeProvider?>(context);
+                  final isDark = themeProvider?.isDarkMode ?? true;
+                  return Expanded(
+                    child: InkWell(
+                      onTap: () => themeProvider?.toggleTheme(),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            isDark ? Icons.light_mode : Icons.dark_mode,
+                            size: 20,
+                            color: activeColor,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            isDark ? 'Light' : 'Dark',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                              color: activeColor,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                ),
-              );
-            },
+                  );
+                },
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

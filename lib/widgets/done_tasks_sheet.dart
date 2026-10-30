@@ -89,7 +89,12 @@ class DoneTasksSheet extends StatelessWidget {
                       )
                     : ListView.builder(
                         controller: scrollController,
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                        padding: EdgeInsets.only(
+                          left: 20,
+                          right: 20,
+                          top: 8,
+                          bottom: MediaQuery.of(context).padding.bottom + 24,
+                        ),
                         itemCount: completedTasks.length,
                         itemBuilder: (ctx, index) {
                           final task = completedTasks[index];

@@ -24,6 +24,7 @@ class _FaceAvatarState extends State<FaceAvatar> with TickerProviderStateMixin {
   late AnimationController _floatController;
   late AnimationController _blinkController;
   late AnimationController _talkController;
+  late AnimationController _thinkController;
   Timer? _blinkTimer;
 
   @override
@@ -39,21 +40,30 @@ class _FaceAvatarState extends State<FaceAvatar> with TickerProviderStateMixin {
     // Blinking animation
     _blinkController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 150),
+      duration: const Duration(milliseconds: 140),
     );
-
-    // Periodic blink timer
-    _scheduleNextBlink();
 
     // Talking animation
     _talkController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 250),
+      duration: const Duration(milliseconds: 200),
+    );
+
+    // Thinking pulsating animation
+    _thinkController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
     );
 
     if (widget.isSpeaking) {
       _talkController.repeat(reverse: true);
     }
+
+    if (widget.isThinking) {
+      _thinkController.repeat(reverse: true);
+    }
+
+    _scheduleNextBlink();
   }
 
   void _scheduleNextBlink() {
@@ -71,11 +81,21 @@ class _FaceAvatarState extends State<FaceAvatar> with TickerProviderStateMixin {
   @override
   void didUpdateWidget(covariant FaceAvatar oldWidget) {
     super.didUpdateWidget(oldWidget);
+
+    // Speaking state changed
     if (widget.isSpeaking && !oldWidget.isSpeaking) {
       _talkController.repeat(reverse: true);
     } else if (!widget.isSpeaking && oldWidget.isSpeaking) {
       _talkController.stop();
       _talkController.reset();
+    }
+
+    // Thinking state changed
+    if (widget.isThinking && !oldWidget.isThinking) {
+      _thinkController.repeat(reverse: true);
+    } else if (!widget.isThinking && oldWidget.isThinking) {
+      _thinkController.stop();
+      _thinkController.reset();
     }
   }
 
@@ -85,6 +105,7 @@ class _FaceAvatarState extends State<FaceAvatar> with TickerProviderStateMixin {
     _floatController.dispose();
     _blinkController.dispose();
     _talkController.dispose();
+    _thinkController.dispose();
     super.dispose();
   }
 
@@ -93,7 +114,7 @@ class _FaceAvatarState extends State<FaceAvatar> with TickerProviderStateMixin {
     final isAction = widget.isThinking || widget.isSpeaking || widget.emotion != 'neutral';
 
     return AnimatedBuilder(
-      animation: Listenable.merge([_floatController, _blinkController, _talkController]),
+      animation: Listenable.merge([_floatController, _blinkController, _talkController, _thinkController]),
       builder: (context, child) {
         final floatOffset = math.sin(_floatController.value * 2 * math.pi) * 8;
 
@@ -103,20 +124,20 @@ class _FaceAvatarState extends State<FaceAvatar> with TickerProviderStateMixin {
             width: widget.size,
             height: widget.size,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(widget.size * 0.3),
+              borderRadius: BorderRadius.circular(widget.size * 0.32),
               gradient: const LinearGradient(
-                colors: [Color(0xFF1E3A8A), Color(0xFF2563EB), Color(0xFF3B82F6)],
+                colors: [Color(0xFF3B82F6), Color(0xFF2563EB), Color(0xFF1D4ED8)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
               border: Border.all(
-                color: isAction ? const Color(0xFF93C5FD) : const Color(0xFF60A5FA),
+                color: isAction ? const Color(0xFF93C5FD) : const Color(0xFF60A5FA).withValues(alpha: 0.6),
                 width: 2,
               ),
               boxShadow: [
                 BoxShadow(
                   color: isAction
-                      ? const Color(0xFF3B82F6).withValues(alpha: 0.6)
+                      ? const Color(0xFF3B82F6).withValues(alpha: 0.65)
                       : const Color(0xFF2563EB).withValues(alpha: 0.35),
                   blurRadius: isAction ? 36 : 24,
                   spreadRadius: isAction ? 4 : 1,
@@ -132,9 +153,24 @@ class _FaceAvatarState extends State<FaceAvatar> with TickerProviderStateMixin {
             child: Stack(
               alignment: Alignment.center,
               children: [
-                // Eyes Row
+                // Inner Glow Overlay
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(widget.size * 0.32),
+                    gradient: RadialGradient(
+                      center: const Alignment(0, -0.2),
+                      radius: 0.8,
+                      colors: [
+                        Colors.white.withValues(alpha: 0.15),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                ),
+
+                // Eyes & Eyebrows Container
                 Positioned(
-                  top: widget.size * 0.32,
+                  top: widget.size * 0.30,
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -147,7 +183,7 @@ class _FaceAvatarState extends State<FaceAvatar> with TickerProviderStateMixin {
 
                 // Mouth
                 Positioned(
-                  bottom: widget.size * 0.22,
+                  bottom: widget.size * 0.20,
                   child: _buildMouth(),
                 ),
               ],
@@ -161,30 +197,34 @@ class _FaceAvatarState extends State<FaceAvatar> with TickerProviderStateMixin {
   Widget _buildEye({required bool isLeft}) {
     double scaleY = 1.0 - (_blinkController.value * 0.85);
 
-    // Emotion eyebrow rotation
+    // Emotion eyebrow angles and offsets (Exact replica of FaceAvatar.jsx)
     double eyebrowAngle = 0.0;
     double eyebrowY = 0.0;
 
     if (widget.emotion == 'angry') {
       eyebrowAngle = isLeft ? (20 * math.pi / 180) : (-20 * math.pi / 180);
-      eyebrowY = 2;
+      eyebrowY = 3.0;
       scaleY *= 0.6;
     } else if (widget.emotion == 'happy') {
-      eyebrowY = -4;
+      eyebrowAngle = 0.0;
+      eyebrowY = -8.0;
     } else if (widget.emotion == 'worried') {
       eyebrowAngle = isLeft ? (-15 * math.pi / 180) : (15 * math.pi / 180);
-      eyebrowY = -2;
+      eyebrowY = -3.0;
     } else if (widget.emotion == 'confused') {
       eyebrowAngle = isLeft ? (15 * math.pi / 180) : (10 * math.pi / 180);
-      eyebrowY = isLeft ? 1 : -4;
-      if (isLeft) scaleY *= 0.7;
+      eyebrowY = isLeft ? 1.0 : -6.0;
+      if (isLeft) scaleY *= 0.6;
     } else if (widget.isThinking) {
       eyebrowAngle = isLeft ? (5 * math.pi / 180) : (-5 * math.pi / 180);
-      eyebrowY = 2;
+      eyebrowY = 2.0;
     }
 
-    final eyeWidth = widget.size * 0.16;
-    final eyeHeight = widget.size * 0.22;
+    final eyeWidth = widget.size * 0.15;
+    final eyeHeight = widget.size * 0.21;
+
+    final isThinkingPulse = widget.isThinking && widget.emotion == 'neutral';
+    final glowPulse = isThinkingPulse ? (_thinkController.value * 6) : 0.0;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -195,16 +235,23 @@ class _FaceAvatarState extends State<FaceAvatar> with TickerProviderStateMixin {
           child: Transform.rotate(
             angle: eyebrowAngle,
             child: Container(
-              width: eyeWidth * 1.3,
-              height: 5,
+              width: eyeWidth * 1.4,
+              height: 5.5,
               decoration: BoxDecoration(
                 color: const Color(0xFF0F172A),
                 borderRadius: BorderRadius.circular(4),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.3),
+                    blurRadius: 3,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
               ),
             ),
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 5),
 
         // Glowing Eye
         Transform.scale(
@@ -214,11 +261,11 @@ class _FaceAvatarState extends State<FaceAvatar> with TickerProviderStateMixin {
             height: eyeHeight,
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(eyeWidth * 0.35),
+              borderRadius: BorderRadius.circular(eyeWidth * 0.38),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF67E8F9).withValues(alpha: 0.9),
-                  blurRadius: 16,
+                  color: const Color(0xFF22D3EE).withValues(alpha: 0.85),
+                  blurRadius: 18 + glowPulse,
                   spreadRadius: 2,
                 ),
                 const BoxShadow(
@@ -234,55 +281,121 @@ class _FaceAvatarState extends State<FaceAvatar> with TickerProviderStateMixin {
   }
 
   Widget _buildMouth() {
-    double width = widget.size * 0.22;
-    double height = widget.size * 0.05;
+    double baseWidth = widget.size * 0.22;
+    double baseHeight = widget.size * 0.045;
 
+    // Talking animation height modulation
     if (widget.isSpeaking) {
-      height = widget.size * (0.04 + _talkController.value * 0.06);
+      baseHeight = widget.size * (0.04 + _talkController.value * 0.07);
     }
 
     if (widget.emotion == 'happy') {
-      width = widget.size * 0.3;
-      height = widget.size * 0.1;
+      final happyWidth = widget.size * 0.28;
+      final happyHeight = widget.isSpeaking
+          ? widget.size * (0.08 + _talkController.value * 0.06)
+          : widget.size * 0.11;
+
       return Container(
-        width: width,
-        height: height,
+        width: happyWidth,
+        height: happyHeight,
         decoration: BoxDecoration(
           color: const Color(0xFF22D3EE),
-          borderRadius: const BorderRadius.vertical(bottom: Radius.circular(30)),
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(2),
+            bottom: Radius.circular(32),
+          ),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF22D3EE).withValues(alpha: 0.8),
+              color: const Color(0xFF22D3EE).withValues(alpha: 0.9),
+              blurRadius: 20,
+              spreadRadius: 2,
+            ),
+            const BoxShadow(
+              color: Colors.white,
+              blurRadius: 10,
+            ),
+          ],
+        ),
+      );
+    } else if (widget.emotion == 'angry') {
+      final angryWidth = widget.size * 0.18;
+      final angryHeight = widget.isSpeaking ? (4.0 + _talkController.value * 5.0) : 3.0;
+
+      return Container(
+        width: angryWidth,
+        height: angryHeight,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.zero,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.white.withValues(alpha: 0.85),
               blurRadius: 16,
+              spreadRadius: 1,
             ),
           ],
         ),
       );
     } else if (widget.emotion == 'worried') {
+      final worriedWidth = widget.size * 0.12;
+      final worriedHeight = widget.isSpeaking
+          ? widget.size * (0.04 + _talkController.value * 0.04)
+          : widget.size * 0.05;
+
       return Container(
-        width: widget.size * 0.14,
-        height: widget.size * 0.06,
+        width: worriedWidth,
+        height: worriedHeight,
         decoration: BoxDecoration(
           color: const Color(0xFF67E8F9),
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(12),
           boxShadow: [
-            BoxShadow(color: const Color(0xFF67E8F9).withValues(alpha: 0.6), blurRadius: 10),
+            BoxShadow(
+              color: const Color(0xFF67E8F9).withValues(alpha: 0.7),
+              blurRadius: 12,
+            ),
           ],
+        ),
+      );
+    } else if (widget.emotion == 'confused') {
+      final confusedWidth = widget.size * 0.18;
+      final confusedHeight = widget.isSpeaking
+          ? widget.size * (0.04 + _talkController.value * 0.04)
+          : widget.size * 0.055;
+
+      return Transform.translate(
+        offset: const Offset(4, 0),
+        child: Transform.rotate(
+          angle: -15 * math.pi / 180,
+          child: Container(
+            width: confusedWidth,
+            height: confusedHeight,
+            decoration: BoxDecoration(
+              color: const Color(0xFF67E8F9),
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF67E8F9).withValues(alpha: 0.7),
+                  blurRadius: 12,
+                ),
+              ],
+            ),
+          ),
         ),
       );
     }
 
+    // Default Neutral Mouth
     return Container(
-      width: width,
-      height: height,
+      width: baseWidth,
+      height: baseHeight,
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        color: widget.isSpeaking ? const Color(0xFF22D3EE) : const Color(0xFFBAE6FD).withValues(alpha: 0.7),
+        borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF22D3EE).withValues(alpha: 0.8),
-            blurRadius: 14,
-            spreadRadius: 1,
+            color: const Color(0xFF22D3EE).withValues(alpha: widget.isSpeaking ? 0.9 : 0.4),
+            blurRadius: widget.isSpeaking ? 16 : 8,
+            spreadRadius: widget.isSpeaking ? 1 : 0,
           ),
         ],
       ),

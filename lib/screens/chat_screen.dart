@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/chat_provider.dart';
@@ -18,25 +19,110 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _textController = TextEditingController();
   final ScrollController _logScrollController = ScrollController();
+  final FlutterTts _flutterTts = FlutterTts();
 
   String _emotion = 'neutral';
   String _displayedText = '';
   Timer? _typewriterTimer;
   String _targetText = '';
 
+  bool _isVoiceEnabled = true;
+  bool _isTtsSpeaking = false;
+
   @override
   void initState() {
     super.initState();
-    _targetText = "Hello! I am Hawk, your personal AI companion. How can I assist you with your health, wealth, or knowledge today?";
+    _initTts();
+
+    _targetText =
+        "Hello! I am Hawk, your personal AI companion. How can I assist you with your health, wealth, or knowledge today?";
     _startTypewriter(_targetText);
+  }
+
+  Future<void> _initTts() async {
+    try {
+      await _flutterTts.setLanguage("en-US");
+      await _flutterTts.setSpeechRate(0.5);
+      await _flutterTts.setVolume(1.0);
+      await _flutterTts.setPitch(1.0);
+
+      _flutterTts.setStartHandler(() {
+        if (mounted) setState(() => _isTtsSpeaking = true);
+      });
+
+      _flutterTts.setCompletionHandler(() {
+        if (mounted) setState(() => _isTtsSpeaking = false);
+      });
+
+      _flutterTts.setCancelHandler(() {
+        if (mounted) setState(() => _isTtsSpeaking = false);
+      });
+
+      _flutterTts.setErrorHandler((msg) {
+        if (mounted) setState(() => _isTtsSpeaking = false);
+      });
+    } catch (e) {
+      debugPrint("FlutterTts init error: $e");
+    }
   }
 
   @override
   void dispose() {
     _typewriterTimer?.cancel();
+    _flutterTts.stop();
     _textController.dispose();
     _logScrollController.dispose();
     super.dispose();
+  }
+
+  String _cleanTextForSpeech(String text) {
+    return text
+        .replaceAll(RegExp(r'\[EMOTION:\s*(angry|happy|neutral|worried|confused)\]', caseSensitive: false), '')
+        .replaceAll(RegExp(r'```[\s\S]*?```'), ' ')
+        .replaceAll(RegExp(r'[*#_~`]'), '')
+        .trim();
+  }
+
+  void _speakIfEnabled(String text) async {
+    if (!_isVoiceEnabled) return;
+    final speechText = _cleanTextForSpeech(text);
+    if (speechText.isEmpty) return;
+
+    try {
+      await _flutterTts.stop();
+      await _flutterTts.speak(speechText);
+    } catch (e) {
+      debugPrint("TTS error: $e");
+    }
+  }
+
+  void _toggleVoice() {
+    setState(() {
+      _isVoiceEnabled = !_isVoiceEnabled;
+      if (!_isVoiceEnabled) {
+        _flutterTts.stop();
+        _isTtsSpeaking = false;
+      }
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        duration: const Duration(seconds: 1),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        content: Row(
+          children: [
+            Icon(
+              _isVoiceEnabled ? Icons.volume_up_rounded : Icons.volume_off_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Text(_isVoiceEnabled ? 'Voice Enabled' : 'Voice Muted'),
+          ],
+        ),
+      ),
+    );
   }
 
   void _startTypewriter(String text) {
@@ -61,16 +147,6 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  void _extractEmotion(String content) {
-    final match = RegExp(r'\[EMOTION:\s*(angry|happy|neutral|worried|confused)\]', caseSensitive: false)
-        .firstMatch(content);
-    if (match != null) {
-      setState(() {
-        _emotion = match.group(1)!.toLowerCase();
-      });
-    }
-  }
-
   void _sendMessage() async {
     final text = _textController.text.trim();
     if (text.isEmpty) return;
@@ -78,9 +154,15 @@ class _ChatScreenState extends State<ChatScreen> {
     _textController.clear();
     final chatProvider = Provider.of<ChatProvider>(context, listen: false);
 
+    // Stop ongoing speech before requesting new reply
+    await _flutterTts.stop();
+    setState(() {
+      _isTtsSpeaking = false;
+    });
+
     await chatProvider.sendMessage(text);
 
-    // Get latest assistant message
+    // Get latest assistant message and emotion
     final messages = chatProvider.messages;
     final lastAssistant = messages.reversed.firstWhere(
       (m) => m.role == 'assistant',
@@ -88,8 +170,13 @@ class _ChatScreenState extends State<ChatScreen> {
     );
 
     if (lastAssistant.content.isNotEmpty) {
-      _extractEmotion(lastAssistant.content);
+      // Expression is updated dynamically from ChatProvider (extracted from [EMOTION: ...])
+      setState(() {
+        _emotion = chatProvider.lastEmotion;
+      });
+
       _startTypewriter(lastAssistant.content);
+      _speakIfEnabled(lastAssistant.content);
     }
   }
 
@@ -103,6 +190,11 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _buildChatLogSheet() {
+    final themeProvider = Provider.of<ThemeProvider?>(context);
+    final isDark = themeProvider?.isDarkMode ?? true;
+    final surface = themeProvider?.surface ?? (isDark ? const Color(0xFF131B2E) : Colors.white);
+    final textPrimary = themeProvider?.textPrimary ?? (isDark ? const Color(0xFFDAE2FD) : const Color(0xFF0D1C2E));
+
     return Consumer<ChatProvider>(
       builder: (context, chatProvider, _) {
         final messages = chatProvider.messages;
@@ -113,7 +205,7 @@ class _ChatScreenState extends State<ChatScreen> {
           minChildSize: 0.4,
           builder: (_, scrollController) {
             return Material(
-              color: const Color(0xFF131B2E),
+              color: surface,
               borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
               child: Column(
                 children: [
@@ -122,7 +214,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     width: 48,
                     height: 5,
                     decoration: BoxDecoration(
-                      color: Colors.white24,
+                      color: isDark ? Colors.white24 : Colors.black12,
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
@@ -134,14 +226,18 @@ class _ChatScreenState extends State<ChatScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Row(
+                        Row(
                           children: [
-                            Icon(Icons.history, color: Color(0xFF8083FF), size: 22),
-                            SizedBox(width: 8),
+                            Icon(
+                              Icons.history_rounded,
+                              color: themeProvider?.primary ?? (isDark ? const Color(0xFF8083FF) : const Color(0xFF4648D4)),
+                              size: 22,
+                            ),
+                            const SizedBox(width: 8),
                             Text(
                               'Conversation Log',
                               style: TextStyle(
-                                color: Colors.white,
+                                color: textPrimary,
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -151,16 +247,21 @@ class _ChatScreenState extends State<ChatScreen> {
                         Row(
                           children: [
                             IconButton(
-                              icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
+                              icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 20),
                               tooltip: 'Clear Chat',
                               onPressed: () {
+                                _flutterTts.stop();
                                 chatProvider.clearChat();
+                                setState(() {
+                                  _emotion = 'neutral';
+                                  _isTtsSpeaking = false;
+                                });
                                 _startTypewriter("Chat cleared. How can I help you now?");
                                 Navigator.pop(context);
                               },
                             ),
                             IconButton(
-                              icon: const Icon(Icons.close, color: Colors.white54, size: 20),
+                              icon: Icon(Icons.close_rounded, color: isDark ? Colors.white54 : Colors.black45, size: 20),
                               onPressed: () => Navigator.pop(context),
                             ),
                           ],
@@ -168,20 +269,28 @@ class _ChatScreenState extends State<ChatScreen> {
                       ],
                     ),
                   ),
-                  const Divider(color: Colors.white10, height: 20),
+                  Divider(color: themeProvider?.divider ?? (isDark ? Colors.white10 : Colors.black12), height: 20),
 
                   // Messages List
                   Expanded(
                     child: messages.isEmpty
-                        ? const Center(
+                        ? Center(
                             child: Text(
                               'No conversation history yet.',
-                              style: TextStyle(color: Color(0xFF908FA0), fontSize: 13),
+                              style: TextStyle(
+                                color: themeProvider?.textSecondary ?? (isDark ? const Color(0xFF908FA0) : const Color(0xFF64748B)),
+                                fontSize: 13,
+                              ),
                             ),
                           )
                         : ListView.builder(
                             controller: scrollController,
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            padding: EdgeInsets.only(
+                              left: 16,
+                              right: 16,
+                              top: 8,
+                              bottom: MediaQuery.of(context).padding.bottom + 24,
+                            ),
                             itemCount: messages.length,
                             itemBuilder: (ctx, i) {
                               final msg = messages[i];
@@ -191,19 +300,21 @@ class _ChatScreenState extends State<ChatScreen> {
                                 child: Container(
                                   margin: const EdgeInsets.only(bottom: 12),
                                   constraints: BoxConstraints(
-                                    maxWidth: MediaQuery.of(context).size.width * 0.78,
+                                    maxWidth: MediaQuery.of(context).size.width * 0.80,
                                   ),
                                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                                   decoration: BoxDecoration(
-                                    color: isUser ? const Color(0xFF4648D4) : const Color(0xFF1E283F),
+                                    color: isUser
+                                        ? (themeProvider?.primary ?? const Color(0xFF4648D4))
+                                        : (isDark ? const Color(0xFF1E283F) : const Color(0xFFF1F5F9)),
                                     borderRadius: BorderRadius.circular(16).copyWith(
                                       bottomRight: isUser ? const Radius.circular(2) : const Radius.circular(16),
                                       bottomLeft: !isUser ? const Radius.circular(2) : const Radius.circular(16),
                                     ),
                                     border: Border.all(
                                       color: isUser
-                                          ? const Color(0xFF8083FF).withValues(alpha: 0.3)
-                                          : Colors.white.withValues(alpha: 0.08),
+                                          ? Colors.transparent
+                                          : (themeProvider?.cardBorder ?? (isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06))),
                                     ),
                                   ),
                                   child: Column(
@@ -212,7 +323,9 @@ class _ChatScreenState extends State<ChatScreen> {
                                       Text(
                                         isUser ? 'YOU' : 'HAWK',
                                         style: TextStyle(
-                                          color: isUser ? Colors.white70 : const Color(0xFF8083FF),
+                                          color: isUser
+                                              ? Colors.white.withValues(alpha: 0.8)
+                                              : (themeProvider?.primary ?? const Color(0xFF8083FF)),
                                           fontSize: 9,
                                           fontWeight: FontWeight.bold,
                                           letterSpacing: 0.8,
@@ -221,8 +334,10 @@ class _ChatScreenState extends State<ChatScreen> {
                                       const SizedBox(height: 4),
                                       Text(
                                         msg.content,
-                                        style: const TextStyle(
-                                          color: Colors.white,
+                                        style: TextStyle(
+                                          color: isUser
+                                              ? Colors.white
+                                              : (themeProvider?.textPrimary ?? (isDark ? Colors.white : const Color(0xFF0D1C2E))),
                                           fontSize: 13,
                                           height: 1.4,
                                         ),
@@ -249,17 +364,23 @@ class _ChatScreenState extends State<ChatScreen> {
     final themeProvider = Provider.of<ThemeProvider?>(context);
     final isDark = themeProvider?.isDarkMode ?? true;
     final isLoading = chatProvider.isLoading;
-    final isSpeaking = !isLoading && _displayedText.isNotEmpty && _displayedText != _targetText;
+
+    // Speaking state combines TTS audio output and typewriter animation
+    final isTypewriting = !isLoading && _displayedText.isNotEmpty && _displayedText != _targetText;
+    final isSpeaking = _isTtsSpeaking || isTypewriting;
+
+    final primaryColor = themeProvider?.primary ?? (isDark ? const Color(0xFF8083FF) : const Color(0xFF4648D4));
 
     return Scaffold(
       backgroundColor: themeProvider?.bg ?? (isDark ? const Color(0xFF0B1326) : const Color(0xFFF8F9FF)),
       body: SafeArea(
         child: Column(
           children: [
-            // 1. Header (AI Chat & Focus) matching Header.jsx
+            // 1. Header with Focus Mode, Voice Toggle, and Chat Log (Matching website Header)
             HawkHeader(
               title: 'AI Chat & Focus',
               subtitle: 'Intelligent Companion',
+              showThemeToggle: false,
               actions: [
                 // Focus Mode Shortcut Pill
                 InkWell(
@@ -270,35 +391,75 @@ class _ChatScreenState extends State<ChatScreen> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF8083FF).withValues(alpha: 0.15),
+                      color: primaryColor.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: const Color(0xFF8083FF).withValues(alpha: 0.3)),
+                      border: Border.all(color: primaryColor.withValues(alpha: 0.3)),
                     ),
-                    child: const Row(
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.center_focus_strong, size: 13, color: Color(0xFF8083FF)),
-                        SizedBox(width: 4),
+                        Icon(Icons.center_focus_strong, size: 13, color: primaryColor),
+                        const SizedBox(width: 4),
                         Text(
                           'Focus Mode',
-                          style: TextStyle(color: Color(0xFF8083FF), fontSize: 11, fontWeight: FontWeight.bold),
+                          style: TextStyle(color: primaryColor, fontSize: 11, fontWeight: FontWeight.bold),
                         ),
                       ],
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
+
+                // Voice On / Off Button (Volume toggle)
+                Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _isVoiceEnabled
+                        ? primaryColor.withValues(alpha: 0.2)
+                        : (themeProvider?.circleBtnBg ?? (isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05))),
+                    border: Border.all(
+                      color: _isVoiceEnabled
+                          ? primaryColor.withValues(alpha: 0.5)
+                          : (themeProvider?.circleBtnBorder ?? (isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.1))),
+                    ),
+                    boxShadow: _isVoiceEnabled
+                        ? [
+                            BoxShadow(
+                              color: primaryColor.withValues(alpha: 0.3),
+                              blurRadius: 10,
+                              spreadRadius: 1,
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: IconButton(
+                    icon: Icon(
+                      _isVoiceEnabled ? Icons.volume_up_rounded : Icons.volume_off_rounded,
+                      size: 18,
+                      color: _isVoiceEnabled
+                          ? primaryColor
+                          : (isDark ? Colors.white60 : Colors.black54),
+                    ),
+                    tooltip: _isVoiceEnabled ? 'Mute Voice' : 'Enable Voice',
+                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                    padding: EdgeInsets.zero,
+                    onPressed: _toggleVoice,
+                  ),
+                ),
+                const SizedBox(width: 6),
 
                 // Chat Log Button
                 Container(
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: themeProvider?.circleBtnBg ?? (isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05)),
-                    border: Border.all(color: themeProvider?.circleBtnBorder ?? (isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.1))),
+                    border: Border.all(
+                      color: themeProvider?.circleBtnBorder ?? (isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.1)),
+                    ),
                   ),
                   child: IconButton(
                     icon: Icon(
-                      Icons.history,
+                      Icons.history_rounded,
                       size: 18,
                       color: isDark ? const Color(0xFFC0C1FF) : const Color(0xFF4648D4),
                     ),
@@ -314,27 +475,28 @@ class _ChatScreenState extends State<ChatScreen> {
             // 2. Main Content: FaceAvatar + Speech Bubble
             Expanded(
               child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                 child: Column(
                   children: [
                     const SizedBox(height: 10),
 
-                    // Character Avatar (Left/Top)
+                    // Character Avatar (with animated face expressions)
                     Center(
                       child: FaceAvatar(
                         isThinking: isLoading,
                         isSpeaking: isSpeaking,
                         emotion: _emotion,
-                        size: 160,
+                        size: 170,
                       ),
                     ),
                     const SizedBox(height: 24),
 
-                    // Speech Bubble Tail
+                    // Speech Bubble Tail pointing to avatar
                     CustomPaint(
                       size: const Size(20, 12),
                       painter: _SpeechTailPainter(
-                        color: themeProvider?.surface ?? (isDark ? const Color(0xFF171F33) : Colors.white),
+                        color: themeProvider?.surface ?? (isDark ? const Color(0xFF131B2E) : Colors.white),
                       ),
                     ),
 
@@ -344,10 +506,11 @@ class _ChatScreenState extends State<ChatScreen> {
                       constraints: const BoxConstraints(minHeight: 120),
                       padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
                       decoration: BoxDecoration(
-                        color: themeProvider?.surface ?? (isDark ? const Color(0xFF171F33) : Colors.white),
+                        color: themeProvider?.surface ?? (isDark ? const Color(0xFF131B2E) : Colors.white),
                         borderRadius: BorderRadius.circular(24),
                         border: Border.all(
-                          color: themeProvider?.cardBorder ?? (isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.08)),
+                          color: themeProvider?.cardBorder ??
+                              (isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.08)),
                           width: 1.5,
                         ),
                         boxShadow: [
@@ -361,7 +524,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       child: Stack(
                         clipBehavior: Clip.none,
                         children: [
-                          // "HAWK" Name Badge
+                          // "HAWK" Name Badge (Matching website style)
                           Positioned(
                             top: -36,
                             left: 0,
@@ -371,7 +534,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                 color: const Color(0xFF4648D4),
                                 borderRadius: BorderRadius.circular(20),
                                 border: Border.all(
-                                  color: themeProvider?.surface ?? (isDark ? const Color(0xFF171F33) : Colors.white),
+                                  color: themeProvider?.surface ?? (isDark ? const Color(0xFF131B2E) : Colors.white),
                                   width: 2,
                                 ),
                                 boxShadow: [
@@ -395,18 +558,18 @@ class _ChatScreenState extends State<ChatScreen> {
 
                           // Text Content
                           isLoading
-                              ? const Row(
+                              ? Row(
                                   children: [
                                     SizedBox(
                                       width: 16,
                                       height: 16,
-                                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF8083FF)),
+                                      child: CircularProgressIndicator(strokeWidth: 2, color: primaryColor),
                                     ),
-                                    SizedBox(width: 10),
+                                    const SizedBox(width: 10),
                                     Text(
                                       'Thinking...',
                                       style: TextStyle(
-                                        color: Color(0xFF8083FF),
+                                        color: primaryColor,
                                         fontSize: 14,
                                         fontWeight: FontWeight.w500,
                                       ),
@@ -416,7 +579,8 @@ class _ChatScreenState extends State<ChatScreen> {
                               : Text(
                                   _displayedText,
                                   style: TextStyle(
-                                    color: themeProvider?.textPrimary ?? (isDark ? const Color(0xFFDAE2FD) : const Color(0xFF0D1C2E)),
+                                    color: themeProvider?.textPrimary ??
+                                        (isDark ? const Color(0xFFDAE2FD) : const Color(0xFF0D1C2E)),
                                     fontSize: 14,
                                     height: 1.5,
                                     fontWeight: FontWeight.w400,
@@ -436,16 +600,24 @@ class _ChatScreenState extends State<ChatScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 color: themeProvider?.surface ?? (isDark ? const Color(0xFF131B2E) : Colors.white),
-                border: Border(top: BorderSide(color: themeProvider?.border ?? (isDark ? Colors.white10 : Colors.black12))),
+                border: Border(
+                  top: BorderSide(
+                    color: themeProvider?.border ?? (isDark ? Colors.white10 : Colors.black12),
+                  ),
+                ),
               ),
               child: Row(
                 children: [
                   Expanded(
                     child: Container(
                       decoration: BoxDecoration(
-                        color: themeProvider?.surfaceContainer ?? (isDark ? const Color(0xFF171F33) : const Color(0xFFEFF4FF)),
+                        color: themeProvider?.surfaceContainer ??
+                            (isDark ? const Color(0xFF171F33) : const Color(0xFFEFF4FF)),
                         borderRadius: BorderRadius.circular(28),
-                        border: Border.all(color: themeProvider?.cardBorder ?? (isDark ? Colors.white.withValues(alpha: 0.15) : Colors.black12)),
+                        border: Border.all(
+                          color: themeProvider?.cardBorder ??
+                              (isDark ? Colors.white.withValues(alpha: 0.15) : Colors.black12),
+                        ),
                       ),
                       child: TextField(
                         controller: _textController,
@@ -456,7 +628,8 @@ class _ChatScreenState extends State<ChatScreen> {
                         decoration: InputDecoration(
                           hintText: 'Type your response to Hawk...',
                           hintStyle: TextStyle(
-                            color: themeProvider?.textSecondary ?? (isDark ? const Color(0xFF908FA0) : const Color(0xFF64748B)),
+                            color: themeProvider?.textSecondary ??
+                                (isDark ? const Color(0xFF908FA0) : const Color(0xFF64748B)),
                             fontSize: 13,
                           ),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
@@ -487,7 +660,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.all(14),
                       ),
-                      icon: const Icon(Icons.send, size: 20),
+                      icon: const Icon(Icons.send_rounded, size: 20),
                     ),
                   ),
                 ],
